@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Creador de Cartas PRO</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=MedievalSharp&family=Orbitron&display=swap" rel="stylesheet">
+
+<style>
+body{
+    background:#111;
+    color:white;
+    font-family:Arial;
+    text-align:center;
+}
+
+.controls{
+    margin-bottom:20px;
+}
+
+input, select{
+    margin:5px;
+}
+
+.card-wrapper{
+    display:inline-block;
+    position:relative;
+}
+
+.card-container{
+    position:relative;
+    overflow:hidden;
+}
+
+.background{
+    position:absolute;
+    top:0;
+    left:0;
+    cursor:grab;
+}
+
+.overlay{
+    position:absolute;
+    top:0;
+    left:0;
+    z-index:5;
+    pointer-events:none;
+}
+
+.text{
+    position:absolute;
+    z-index:10;
+    cursor:move;
+    text-shadow:2px 2px 4px black;
+    user-select:none;
+}
+</style>
+</head>
+<body>
+
+<h2>🎴 Creador de Cartas PRO</h2>
+
+<div class="controls">
+
+Overlay PNG:
+<input type="file" id="overlayInput" accept="image/png"><br>
+
+Imagen Fondo:
+<input type="file" id="backgroundInput" accept="image/*"><br>
+
+Nombre:
+<input type="text" id="nameInput">
+
+Descripción:
+<input type="text" id="descInput"><br>
+
+Ataque:
+<input type="number" id="atkInput">
+
+Defensa:
+<input type="number" id="defInput"><br>
+
+Fuente:
+<select id="fontSelect">
+<option value="Cinzel">Cinzel</option>
+<option value="MedievalSharp">Medieval</option>
+<option value="Orbitron">Sci-Fi</option>
+<option value="Arial">Arial</option>
+</select>
+
+Tamaño Texto:
+<input type="range" id="fontSize" min="12" max="60" value="24"><br>
+
+Zoom Fondo:
+<input type="range" id="zoomRange" min="1" max="2" step="0.01" value="1"><br>
+
+Resolución:
+<select id="resolution">
+<option value="1">Normal</option>
+<option value="2">HD x2 (Imprimir)</option>
+</select><br>
+
+<button onclick="downloadCard()">📥 Descargar PNG</button>
+
+</div>
+
+<div class="card-wrapper">
+    <div class="card-container" id="cardContainer">
+        <img id="backgroundImage" class="background">
+        <img id="overlayImage" class="overlay">
+
+        <div id="cardName" class="text" style="top:20px; left:20px;">Nombre</div>
+        <div id="cardDesc" class="text" style="top:80px; left:20px;">Descripción</div>
+        <div id="cardStats" class="text" style="bottom:20px; right:20px;">ATK/DEF</div>
+    </div>
+</div>
+
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+
+<script>
+const overlayInput = document.getElementById("overlayInput");
+const backgroundInput = document.getElementById("backgroundInput");
+const overlayImage = document.getElementById("overlayImage");
+const backgroundImage = document.getElementById("backgroundImage");
+const cardContainer = document.getElementById("cardContainer");
+
+let bgScale = 1;
+let posX = 0;
+let posY = 0;
+let isDragging = false;
+let startX, startY;
+
+// Cargar Overlay
+overlayInput.addEventListener("change", e=>{
+    const reader = new FileReader();
+    reader.onload = event=>{
+        overlayImage.src = event.target.result;
+        overlayImage.onload = ()=>{
+            cardContainer.style.width = overlayImage.width+"px";
+            cardContainer.style.height = overlayImage.height+"px";
+            overlayImage.style.width = "100%";
+            overlayImage.style.height = "100%";
+        }
+    }
+    reader.readAsDataURL(e.target.files[0]);
+});
+
+// Cargar Fondo
+backgroundInput.addEventListener("change", e=>{
+    const reader = new FileReader();
+    reader.onload = event=>{
+        backgroundImage.src = event.target.result;
+        backgroundImage.onload = ()=>{
+            fitBackground();
+        }
+    }
+    reader.readAsDataURL(e.target.files[0]);
+});
+
+function fitBackground(){
+    backgroundImage.style.height = cardContainer.offsetHeight+"px";
+    backgroundImage.style.width = "auto";
+    backgroundImage.style.transform = `translate(${posX}px,${posY}px) scale(${bgScale})`;
+}
+
+// Zoom
+document.getElementById("zoomRange").addEventListener("input", e=>{
+    bgScale = e.target.value;
+    fitBackground();
+});
+
+// Drag Fondo
+backgroundImage.addEventListener("mousedown", e=>{
+    isDragging = true;
+    startX = e.clientX - posX;
+    startY = e.clientY - posY;
+});
+
+document.addEventListener("mousemove", e=>{
+    if(!isDragging) return;
+    posX = e.clientX - startX;
+    posY = e.clientY - startY;
+    fitBackground();
+});
+
+document.addEventListener("mouseup", ()=> isDragging=false);
+
+// Texto dinámico
+document.getElementById("nameInput").oninput = e=>{
+    cardName.innerText = e.target.value;
+};
+document.getElementById("descInput").oninput = e=>{
+    cardDesc.innerText = e.target.value;
+};
+function updateStats(){
+    cardStats.innerText = 
+        document.getElementById("atkInput").value +
+        " / " +
+        document.getElementById("defInput").value;
+}
+atkInput.oninput = updateStats;
+defInput.oninput = updateStats;
+
+// Fuente
+document.getElementById("fontSelect").addEventListener("change", e=>{
+    document.querySelectorAll(".text").forEach(t=>{
+        t.style.fontFamily = e.target.value;
+    });
+});
+
+// Tamaño
+document.getElementById("fontSize").addEventListener("input", e=>{
+    document.querySelectorAll(".text").forEach(t=>{
+        t.style.fontSize = e.target.value+"px";
+    });
+});
+
+// Drag Textos
+document.querySelectorAll(".text").forEach(el=>{
+    let dragging=false, offsetX, offsetY;
+
+    el.addEventListener("mousedown", e=>{
+        dragging=true;
+        offsetX = e.offsetX;
+        offsetY = e.offsetY;
+    });
+
+    document.addEventListener("mousemove", e=>{
+        if(!dragging) return;
+        const rect = cardContainer.getBoundingClientRect();
+        el.style.left = (e.clientX - rect.left - offsetX)+"px";
+        el.style.top = (e.clientY - rect.top - offsetY)+"px";
+    });
+
+    document.addEventListener("mouseup", ()=> dragging=false);
+});
+
+// Descargar
+function downloadCard(){
+    const scaleFactor = document.getElementById("resolution").value;
+    html2canvas(cardContainer,{
+        scale: scaleFactor,
+        useCORS:true
+    }).then(canvas=>{
+        const link=document.createElement("a");
+        link.download="carta.png";
+        link.href=canvas.toDataURL();
+        link.click();
+    });
+}
+</script>
+
+</body>
+</html>
